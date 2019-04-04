@@ -67,8 +67,8 @@ uint16_t FuncionTemperatura(){
   while (Wire.available())
   {
     /* Receive the byte */
-    uint8_t MostSignificantB = Wire.read();
-    uint8_t LeastSignificantB = Wire.read();
+    MostSignificantB = Wire.read();
+    LeastSignificantB = Wire.read();
     
     /* Send it to console/monitor */
    Serial.printf("Received MOST: %02X\n", MostSignificantB);
