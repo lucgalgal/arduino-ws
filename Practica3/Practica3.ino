@@ -1,11 +1,7 @@
 /* Include required headers and/or libraries */
-#include <Wire.h>
-#include "SparkFunBME280.h"
+#include <FS.h>
 
-#define SLAVE_ADDRESS 0x76
-
-/* Instantiate a BME280 object called BME280_obj */
-BME280 BME280_obj;
+#define TESTFILE "/test_file.txt"
 
 /*
  * Single-pass function to configure the app
@@ -15,20 +11,14 @@ void setup()
   /* Start serial for output */
   Serial.begin(115200);
 
-  /* Join I2C bus and set it to 400 kHz */
-  Wire.begin(0, 2);
-  Wire.setClock(400000);
-
-  /* Address the sensor */
-  BME280_obj.setI2CAddress(SLAVE_ADDRESS);
-
-  /* Check communication before continue */
-  if (BME280_obj.beginI2C(Wire) == false)
+  /* Initialize the file system */
+  Serial.printf("Initializing SPIFFS\n");
+  if (SPIFFS.begin() == false)
   {
-    Serial.printf("The sensor did not respond. Please check wiring.\n");
+    Serial.printf("SPIFFS cannot be initialized\n");
 
     /* Stop here (WDT will reset at some point) */
-    while(1);
+    while(1) {};
   }
 }
 
@@ -37,37 +27,75 @@ void setup()
  */
 void loop()
 {
-  
   /* Welcome message! Useful as a control point */
   Serial.printf("Ahoy! ESP8266 here!\n---\n");
-  /*Declare all variables I'll need*/
-  float H=0;
-  float P=0;
-  float A=0;
-  float T=0;
-  
-  /*Read all sensors */
-  H = BME280_obj.readFloatHumidity();
-  Serial.printf("Humidity: %f \n",H);
-  
 
-  P = BME280_obj.readFloatPressure();
-  Serial.printf(" Pressure: %f \n",P);
-  
-  A = BME280_obj.readFloatAltitudeMeters();
-  Serial.printf(" Alt: %f \n",A);
-  
-  //Serial.print(BME280_obj.readFloatAltitudeFeet(), 1);
-  
-  T = BME280_obj.readTempC();
-  Serial.printf(" Temp: %f \n",T);
-  
-  //Serial.printf(BME280_obj.readTempF(), 2);
+  File test_file;
+  #define MY_STR_LEN 1024
+  uint8_t my_string[MY_STR_LEN];
+  uint16_t my_line = 0;
 
-  Serial.printf("\n");
+  /* The file already exist? */
+  if (SPIFFS.exists(TESTFILE))
+  {
+    Serial.printf("File '" TESTFILE "'' IS found'\n");
+  }
+  else
+  {
+    Serial.printf("File '" TESTFILE "'' NOT found'\n");
+  }
 
-  
+  /* Mode 'a+' create if not exists:
+   *  - Read from the beginning of the file
+   *  - Append new data at the end
+   *  * Useful for buffers ;)
+   */
+  test_file = SPIFFS.open(TESTFILE, "a+");
+  if (!test_file)
+  {
+    /* Oh man, this is serious */
+    Serial.printf("Cannot open '" TESTFILE "'' for appending'\n");
+  }
+  else
+  {
+    Serial.printf("Opened '" TESTFILE "'\n");
 
-  /* Ensure not to flood with a huge amount of fast data */
-  delay(500);
+    /* Opened, now put some (at the end of the file) */
+    Serial.printf("Filling file '" TESTFILE "' with some data\n");
+    test_file.printf("This is the first line\n");
+    test_file.printf("This is the second line\n");
+    test_file.printf("This is the third line\n");
+    test_file.close();
+
+    /* Mode 'r' create if not exists:
+     *  - Read from the beginning of the file
+     *  - Fails if file not exists
+     *  * Useful for safe readings without data modification
+     */
+    test_file = SPIFFS.open(TESTFILE, "r");
+    Serial.printf("Reopened '" TESTFILE "' for reading\n");
+    Serial.printf("Contents of file '" TESTFILE "'\n");
+    my_line = 0;
+    while (test_file.position() < test_file.size())
+    {
+      test_file.readBytesUntil('\n', my_string, MY_STR_LEN);
+      Serial.printf("Line %03d: %s\n", my_line++, my_string);
+    }
+
+    /* Done, free/close the file */
+    test_file.close();
+    Serial.printf("Closed '" TESTFILE "'\n");
+
+    /* Remove the file */
+    SPIFFS.remove(TESTFILE);
+    Serial.printf("Removed '" TESTFILE "'\n");
+  }
+
+  /* Process is locked until reset is performed */
+  Serial.printf("Locking now\n");
+  while (true)
+  {
+    /* Ensure other tasks are working (avoid WDT reset) */
+    yield();
+  }
 }
